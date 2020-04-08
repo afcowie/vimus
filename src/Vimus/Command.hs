@@ -179,6 +179,7 @@ instance Widget PlaylistWidget where
         EvMoveDown           {} -> currentTime
         EvMoveAlbumPrev      {} -> currentTime
         EvMoveAlbumNext      {} -> currentTime
+        EvSelectAlbum        {} -> currentTime
         EvMoveIn             {} -> currentTime
         EvMoveOut            {} -> currentTime
         EvMoveFirst          {} -> currentTime
@@ -266,6 +267,8 @@ songListHandler l ev = case ev of
     case ListWidget.select $ ListWidget.moveUp l of
       Just song -> return (ListWidget.moveUpWhile (sameAlbum song) l)
       Nothing   -> return l
+
+  EvSelectAlbum -> return $ ListWidget.selectGroupBy sameAlbum l
 
   EvCopy -> do
     writeCopyRegister $ pure (map MPD.sgFilePath $ ListWidget.selected l)
@@ -552,6 +555,9 @@ commands = [
   , command "novisual" "cancel visual selection" $
       sendEventCurrent EvNoVisual
 
+  , command "select-album" "select all songs around the cursor which have the same album" $
+      sendEventCurrent EvSelectAlbum
+
   , command "remove" "remove the song under the cursor from the playlist" $
       sendEventCurrent EvRemove
 
@@ -801,7 +807,7 @@ seek :: Seconds -> Vimus ()
 seek (Seconds delta) = do
   st <- MPD.status
   let (current, total) = fromMaybe (0, 0) (MPD.stTime st)
-  let newTime = round current + delta
+  let newTime = current + fromIntegral delta
   if newTime < 0
     then do
       -- seek within previous song
@@ -809,7 +815,7 @@ seek (Seconds delta) = do
         Just currentSongPos -> unless (currentSongPos == 0) $ do
           previousItem <- MPD.playlistInfo $ Just (currentSongPos - 1)
           case previousItem of
-            song : _ -> maybeSeek (MPD.sgId song) (MPD.sgLength song + newTime)
+            song : _ -> maybeSeek (MPD.sgId song) (sgLength song + newTime)
             _        -> return ()
         _ -> return ()
     else if newTime > total then
@@ -821,6 +827,8 @@ seek (Seconds delta) = do
   where
     maybeSeek (Just songId) time = MPD.seekId songId time
     maybeSeek Nothing _      = return ()
+
+    sgLength = fromIntegral . MPD.sgLength
 
 -- | Volume argument for the 'volume' command.
 data Volume =
@@ -850,14 +858,10 @@ readVolume s = case s of
 
 -- | Set volume, or increment it by fixed amount.
 volume :: Volume -> Vimus ()
-volume (Volume v)       = MPD.setVolume v
-volume (VolumeOffset i) = currentVolume >>= maybe (return ()) (\v -> MPD.setVolume (adjust (v + i)))
+volume (Volume v)       = MPD.setVolume (fromIntegral v)
+volume (VolumeOffset i) = currentVolume >>= maybe (return ()) (\v -> MPD.setVolume (v + fromIntegral i))
   where
     currentVolume = MPD.stVolume <$> MPD.status
-    adjust x
-      | x > 100   = 100
-      | x < 0     = 0
-      | otherwise = x
 
 
 -- | Get all 'MPD.Song's with the same metadata as the selected 'MPD.Song',

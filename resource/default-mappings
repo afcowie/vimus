@@ -46,6 +46,7 @@ map <CR>        :default-action<CR>
 map t           :toggle<CR>
 map <Space>     :toggle<CR>
 map d           :remove<CR>
+map D           :select-album<CR>:remove<CR>
 map y           :copy<CR>
 map p           :paste<CR>
 map P           :paste-prev<CR>
@@ -64,3 +65,4 @@ map N           :search-prev<CR>
 # selecting
 map v           :visual<CR>
 map <ESC>       :novisual<CR>
+map V           :select-album<CR>
